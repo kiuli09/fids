@@ -50,3 +50,57 @@ button:hover {
     font-weight: bold;
     color: #163b65;
 }
+
+
+/* Counter dashboard */
+.counter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin: 20px 0 30px;
+}
+
+.counter-button {
+    background: #e9eef5;
+    color: #163b65;
+    min-height: 75px;
+    border: 2px solid transparent;
+}
+
+.counter-button:hover {
+    background: #d8e6f5;
+}
+
+.counter-button.selected {
+    background: #1769aa;
+    color: white;
+    border-color: #104c7d;
+}
+
+/* Individual counter controls */
+.control-panel {
+    background: #f4f6f9;
+    padding: 25px;
+    border-radius: 10px;
+}
+
+.control-panel label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.control-panel select {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 1px solid #ccd5df;
+    border-radius: 6px;
+}
+
+@media (max-width: 600px) {
+    .counter-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
