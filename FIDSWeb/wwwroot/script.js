@@ -65,9 +65,13 @@ async function applySlide() {
         `Sending Slide ${slideNumber} to Counter ${selectedCounter}...`;
 
     try {
-        const response = await fetch(`/api/slide/${slideNumber}`, {
-            method: "POST"
-        });
+        // Send the command to the selected counter
+        const response = await fetch(
+            `/api/counters/${selectedCounter}/slide/${slideNumber}`,
+            {
+                method: "POST"
+            }
+        );
 
         if (!response.ok) {
             throw new Error(

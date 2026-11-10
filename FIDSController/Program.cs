@@ -39,6 +39,31 @@ app.MapPost("/api/slide/{number:int}", async (int number) =>
     }
 });
 
+
+ // Check the controller and PowerPoint status
+app.MapGet("/api/status", async () =>
+{
+    try
+    {
+        var status = await controller.GetStatus();
+
+        return Results.Ok(status);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Status check error: {ex.Message}");
+
+        return Results.Ok(new
+        {
+            controllerOnline = true,
+            powerpointRunning = false,
+            slideshowActive = false,
+            error = ex.Message
+        });
+    }
+});
+
+
 // Listen only on this computer during testing
 app.Run("http://127.0.0.1:5100");
 
@@ -57,6 +82,49 @@ class PowerPointController : IDisposable
         worker.IsBackground = true;
         worker.Start();
     }
+
+
+    // Check PowerPoint status using the STA thread
+    public Task<object> GetStatus()
+    {
+        var completion = new TaskCompletionSource<object>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+
+        commands.Add(() =>
+        {
+            try
+            {
+                dynamic powerpoint = GetRunningPowerPoint();
+
+                int slideshowCount =
+                    powerpoint.SlideShowWindows.Count;
+
+                completion.SetResult(new
+                {
+                    controllerOnline = true,
+                    powerpointRunning = true,
+                    slideshowActive = slideshowCount > 0
+                });
+            }
+            catch (COMException)
+            {
+                completion.SetResult(new
+                {
+                    controllerOnline = true,
+                    powerpointRunning = false,
+                    slideshowActive = false
+                });
+            }
+            catch (Exception ex)
+            {
+                completion.SetException(ex);
+            }
+        });
+
+        return completion.Task;
+    }
+
 
     // Request a slide change
     public Task<string> ChangeSlide(int slideNumber)
