@@ -81,10 +81,7 @@ async function applySlide() {
 
         counters[selectedCounter] = slideNumber;
 
-        document.getElementById(
-            `counter-${selectedCounter}`
-        ).textContent =
-            `Counter ${selectedCounter} - Slide ${slideNumber}`;
+        refreshStatuses();
 
         status.textContent =
             `Counter ${selectedCounter}: Slide ${slideNumber} applied.`;
@@ -97,3 +94,103 @@ async function applySlide() {
 
 // Initialize after the HTML has loaded
 document.addEventListener("DOMContentLoaded", loadCounters);
+
+
+async function refreshStatuses() {
+    const refreshButton = document.getElementById("refreshButton");
+    const lastUpdated = document.getElementById("lastUpdated");
+
+    refreshButton.disabled = true;
+    refreshButton.textContent = "Checking...";
+
+    try {
+        const response = await fetch("/api/counters/status", {
+            cache: "no-store"
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const statuses = await response.json();
+
+        statuses.forEach(counter => {
+            const button = document.getElementById(
+                `counter-${counter.counter}`
+            );
+
+            if (!button) return;
+
+            button.classList.remove(
+                "connected",
+                "disconnected",
+                "not-configured",
+                "slideshow-inactive"
+            );
+
+            let statusText = "";
+
+            if (counter.status === "not_configured") {
+                button.classList.add("not-configured");
+                statusText = "Not Configured";
+            }
+            else if (counter.status === "disconnected") {
+                button.classList.add("disconnected");
+                statusText = "Disconnected";
+            }
+            else if (counter.status === "connected") {
+                if (counter.slideshowActive) {
+                    button.classList.add("connected");
+                    statusText = "● Slideshow Active";
+                }
+                else {
+                    button.classList.add("slideshow-inactive");
+                    statusText = counter.powerpointRunning
+                        ? "PowerPoint Open - No Slideshow"
+                        : "PowerPoint Not Running";
+                }
+            }
+
+            const slide = counters[counter.counter];
+            const slideText = slide ? `Slide ${slide}` : "";
+
+            button.replaceChildren();
+
+            const name = document.createElement("strong");
+            name.textContent = `Counter ${counter.counter}`;
+
+            const status = document.createElement("small");
+            status.textContent = statusText;
+
+            button.appendChild(name);
+            button.appendChild(status);
+
+            if (slideText) {
+                const slideLabel = document.createElement("small");
+                slideLabel.textContent = slideText;
+                button.appendChild(slideLabel);
+            }
+        });
+
+        lastUpdated.textContent =
+            `Last updated: ${new Date().toLocaleTimeString()}`;
+    }
+    catch (error) {
+        console.error("Status refresh failed:", error);
+        lastUpdated.textContent =
+            "Unable to retrieve counter statuses.";
+    }
+    finally {
+        refreshButton.disabled = false;
+        refreshButton.textContent = "↻ Refresh Status";
+    }
+}
+
+// Run first check when the dashboard loads
+document.addEventListener("DOMContentLoaded", () => {
+    refreshStatuses();
+
+    // Refresh automatically every 10 seconds
+    setInterval(refreshStatuses, 10000);
+});
+
