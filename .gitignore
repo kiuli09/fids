@@ -1,0 +1,49 @@
+
+# ==========================
+# SAA FIDS - Git Ignore
+# ==========================
+
+# .NET build output
+**/bin/
+**/obj/
+**/Debug/
+**/Release/
+
+# Visual Studio / VS Code
+.vs/
+.vscode/*
+!.vscode/extensions.json
+*.user
+*.suo
+*.rsuser
+
+# Rider
+.idea/
+
+# Build and temporary files
+*.log
+*.tmp
+*.cache
+TestResults/
+
+# NuGet packages
+*.nupkg
+packages/
+
+# Local environment settings
+.env
+.env.*
+!.env.example
+
+# Local configuration and secrets
+**/appsettings.Development.json
+**/secrets.json
+
+# PowerPoint temporary files
+~$*.pptx
+~$*.ppt
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini

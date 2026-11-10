@@ -1,76 +1,180 @@
 ﻿
-using System;
+using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 
 Console.WriteLine("=== SAA FIDS Controller ===");
 
-// Locate the PowerPoint presentation
-string filePath = Path.GetFullPath(
-    Path.Combine("FIDS-Test", "fids_ppt.pptx")
-);
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
 
-try
+// Process PowerPoint commands on one STA thread
+using var controller = new PowerPointController();
+
+// Receive slide-change requests from the dashboard
+app.MapPost("/api/slide/{number:int}", async (int number) =>
 {
-    // Find the installed PowerPoint application
-    Type? pptType = Type.GetTypeFromProgID(
-        "PowerPoint.Application"
-    );
+    if (number < 1)
+        return Results.BadRequest("Invalid slide number.");
 
-    if (pptType == null)
+    try
     {
-        Console.WriteLine("PowerPoint not found. Check your filepath ti'o :)");
-        return;
+        string message = await controller.ChangeSlide(number);
+
+        return Results.Ok(new
+        {
+            message
+        });
+    }
+    catch (ArgumentOutOfRangeException ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error: {ex.Message}");
+
+        return Results.Problem(
+            "Unable to change PowerPoint slide."
+        );
+    }
+});
+
+// Listen only on this computer during testing
+app.Run("http://127.0.0.1:5100");
+
+
+// Controls an existing PowerPoint slideshow
+class PowerPointController : IDisposable
+{
+    private readonly BlockingCollection<Action> commands = new();
+    private readonly Thread worker;
+
+    public PowerPointController()
+    {
+        // PowerPoint COM operations use an STA thread
+        worker = new Thread(ProcessCommands);
+        worker.SetApartmentState(ApartmentState.STA);
+        worker.IsBackground = true;
+        worker.Start();
     }
 
-    // Connect to PowerPoint
-    dynamic powerpoint = Activator.CreateInstance(pptType)!;
-
-    // Open the FIDS presentation
-    dynamic presentation = powerpoint.Presentations.Open(
-        filePath, 0, 0, -1
-    );
-
-    // Start the slideshow
-    dynamic slideshow = presentation.SlideShowSettings.Run();
-
-    Console.WriteLine("FIDS slideshow started!");
-
-    // Keep the controller running for slide changes babooommmm
-    while (true)
+    // Request a slide change
+    public Task<string> ChangeSlide(int slideNumber)
     {
-        Console.Write("\nEnter slide number (or Q to quit): ");
-        string? input = Console.ReadLine();
+        var completion = new TaskCompletionSource<string>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
 
-        // Exit the controller when Q is entered
-        if (input?.ToUpper() == "Q")
-            break;
-
-        // Check if the input is a valid number
-        if (int.TryParse(input, out int slideNumber))
+        commands.Add(() =>
         {
-            // Make sure the slide exists in the presentation yaknowww
-            if (slideNumber >= 1 &&
-                slideNumber <= presentation.Slides.Count)
+            try
             {
-                // Switch to the selected slide
+                // Connect to the running PowerPoint application
+                dynamic powerpoint = GetRunningPowerPoint();
+
+                Console.WriteLine(
+                    "Connected to PowerPoint application."
+                );
+
+                // Check for an active slideshow
+                int slideshowCount =
+                    powerpoint.SlideShowWindows.Count;
+
+                Console.WriteLine(
+                    $"Active slideshows: {slideshowCount}"
+                );
+
+                if (slideshowCount == 0)
+                {
+                    throw new Exception(
+                        "No active PowerPoint slideshow found."
+                    );
+                }
+
+                // Connect to the existing slideshow
+                dynamic slideshow =
+                    powerpoint.SlideShowWindows[1];
+
+                // Validate the requested slide
+                int totalSlides =
+                    slideshow.Presentation.Slides.Count;
+
+                if (slideNumber > totalSlides)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(slideNumber),
+                        $"Slide {slideNumber} does not exist."
+                    );
+                }
+
+                // Change the slide without reopening PowerPoint
                 slideshow.View.GotoSlide(slideNumber);
 
                 Console.WriteLine(
+                    $"Switched to Slide {slideNumber}"
+                );
+
+                completion.SetResult(
                     $"Now displaying Slide {slideNumber}"
                 );
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("Invalid slide number ti'o.");
+                completion.SetException(ex);
+            }
+        });
+
+        return completion.Task;
+    }
+
+    // Execute commands on the dedicated STA thread
+    private void ProcessCommands()
+    {
+        foreach (Action command in commands.GetConsumingEnumerable())
+        {
+            try
+            {
+                command();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    $"Controller error: {ex.Message}"
+                );
             }
         }
-        else
-        {
-            Console.WriteLine("Please enter a valid number.");
-        }
     }
-}
-catch (Exception ex)
-{
-    // Display any errors (hopefully nadaa)
-    Console.WriteLine($"Error: {ex.Message}");
+
+    // Find the running PowerPoint application
+    private static object GetRunningPowerPoint()
+    {
+        Guid clsid = new(
+            "91493441-5A91-11CF-8700-00AA0060263B"
+        );
+
+        int result = GetActiveObject(
+            ref clsid,
+            IntPtr.Zero,
+            out object powerpoint
+        );
+
+        if (result != 0)
+            Marshal.ThrowExceptionForHR(result);
+
+        return powerpoint;
+    }
+
+    // Windows COM API
+    [DllImport("oleaut32.dll", PreserveSig = true)]
+    private static extern int GetActiveObject(
+        ref Guid rclsid,
+        IntPtr reserved,
+        [MarshalAs(UnmanagedType.Interface)] out object ppunk
+    );
+
+    // Stop accepting new commands
+    public void Dispose()
+    {
+        commands.CompleteAdding();
+    }
 }
