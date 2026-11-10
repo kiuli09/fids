@@ -1,12 +1,146 @@
 
-// SAA FIDS - Counter Management
+ // SAA FIDS - Counter Management
 
 let selectedCounter = 1;
 
-// Store the selected slide for each counter
+// Store the last successfully applied slide for each counter
 const counters = {};
 
-// Generate all 13 check-in counters
+// Airline display presets from the actual FIDS PowerPoint
+const airlinePresets = {
+    "Air New Zealand": [
+        { slide: 2, name: "Online Check-in" },
+        { slide: 3, name: "NZ993 - Economy" },
+        { slide: 4, name: "NZ993 - Premium" },
+        { slide: 5, name: "NZ997 - Economy" },
+        { slide: 6, name: "NZ997 - Premium" },
+        { slide: 7, name: "NZ999 - Economy" },
+        { slide: 8, name: "NZ999 - Premium" },
+        { slide: 9, name: "NZ1307 - Economy" },
+        { slide: 10, name: "NZ1307 - Premium" },
+        { slide: 11, name: "Service Desk" }
+    ],
+
+    "Fiji Airways": [
+        { slide: 12, name: "Premium" },
+        { slide: 13, name: "Economy" },
+        { slide: 14, name: "Bag Drop" },
+        { slide: 15, name: "Power Bank Advisory" },
+        { slide: 16, name: "Service Desk" }
+    ],
+
+    "Virgin Australia": [
+        { slide: 17, name: "Priority Check-in" },
+        { slide: 18, name: "Check-in" }
+    ],
+
+    "Qantas": [
+        { slide: 19, name: "QF198 - Online Check-in" },
+        { slide: 20, name: "QF198 - Business" },
+        { slide: 21, name: "QF198 - Economy" },
+        { slide: 22, name: "QF144 - Online Check-in" },
+        { slide: 23, name: "QF144 - Business" },
+        { slide: 24, name: "QF144 - Economy" },
+        { slide: 25, name: "Travel Advisory" }
+    ],
+
+    "Samoa Airways": [
+        { slide: 26, name: "Pago Pago Check-in" }
+    ],
+
+    "Talofa Airways": [
+        { slide: 27, name: "Check-in / Ticket & Cargo Sales" }
+    ],
+
+    "SAA / General": [
+        { slide: 1, name: "Airport Welcome" },
+        { slide: 28, name: "Departure Tax - English" },
+        { slide: 29, name: "Departure Tax - Samoan" }
+    ]
+};
+
+
+// ==========================================
+// AIRLINE AND DISPLAY PRESETS
+// ==========================================
+
+// Populate the airline dropdown
+function loadAirlines() {
+    const airlineSelect = document.getElementById("airlineSelect");
+
+    airlineSelect.innerHTML = "";
+
+    Object.keys(airlinePresets).forEach(airline => {
+        const option = document.createElement("option");
+
+        option.value = airline;
+        option.textContent = airline;
+
+        airlineSelect.appendChild(option);
+    });
+
+    loadDisplays();
+}
+
+
+// Populate displays for the selected airline
+function loadDisplays() {
+    const airline = document.getElementById("airlineSelect").value;
+    const slideSelect = document.getElementById("slideSelect");
+
+    slideSelect.innerHTML = "";
+
+    airlinePresets[airline].forEach(preset => {
+        const option = document.createElement("option");
+
+        option.value = preset.slide;
+        option.textContent = preset.name;
+
+        slideSelect.appendChild(option);
+    });
+
+    updatePresetInfo();
+}
+
+
+// Show information about the selected preset
+function updatePresetInfo() {
+    const airline = document.getElementById("airlineSelect").value;
+    const slideSelect = document.getElementById("slideSelect");
+
+    const selectedName =
+        slideSelect.options[slideSelect.selectedIndex]?.textContent;
+
+    document.getElementById("presetInfo").textContent =
+        `${airline} - ${selectedName} (Slide ${slideSelect.value})`;
+}
+
+
+// Restore airline and display based on a slide number
+function selectPresetBySlide(slideNumber) {
+    for (const [airline, presets] of Object.entries(airlinePresets)) {
+        if (presets.some(preset => preset.slide === Number(slideNumber))) {
+
+            document.getElementById("airlineSelect").value = airline;
+
+            loadDisplays();
+
+            document.getElementById("slideSelect").value =
+                String(slideNumber);
+
+            updatePresetInfo();
+
+            return;
+        }
+    }
+}
+
+
+// ==========================================
+// COUNTER MANAGEMENT
+// ==========================================
+
+// Generate the 13 check-in counter buttons
 function loadCounters() {
     const grid = document.getElementById("counterGrid");
 
@@ -22,6 +156,7 @@ function loadCounters() {
 
         button.className = "counter-button";
         button.id = `counter-${i}`;
+        button.type = "button";
         button.textContent = `Counter ${i}`;
 
         button.addEventListener("click", () => {
@@ -34,6 +169,7 @@ function loadCounters() {
     selectCounter(1);
 }
 
+
 // Select a counter
 function selectCounter(number) {
     selectedCounter = number;
@@ -41,33 +177,49 @@ function selectCounter(number) {
     document.getElementById("selectedCounter").textContent =
         `Counter ${number}`;
 
-    // Highlight the selected counter
+    // Remove previous selection highlighting
     document.querySelectorAll(".counter-button").forEach(button => {
         button.classList.remove("selected");
     });
 
+    // Highlight selected counter
     document.getElementById(`counter-${number}`)
         .classList.add("selected");
 
-    // Restore previously selected slide
-    document.getElementById("slideSelect").value =
-        counters[number] || "1";
+    // Restore this counter's previously applied preset
+    selectPresetBySlide(counters[number] || 1);
 }
 
-// Apply the selected slide
+
+// ==========================================
+// APPLY DISPLAY
+// ==========================================
+
+// Apply the selected slide to the selected counter
 async function applySlide() {
+    const counterNumber = selectedCounter;
+
     const slideNumber =
         document.getElementById("slideSelect").value;
 
+    const airline =
+        document.getElementById("airlineSelect").value;
+
+    const displayName =
+        document.getElementById("slideSelect")
+            .selectedOptions[0]?.textContent;
+
     const status = document.getElementById("status");
+    const applyButton = document.getElementById("applyButton");
 
     status.textContent =
-        `Sending Slide ${slideNumber} to Counter ${selectedCounter}...`;
+        `Applying ${airline} - ${displayName} to Counter ${counterNumber}...`;
+
+    applyButton.disabled = true;
 
     try {
-        // Send the command to the selected counter
         const response = await fetch(
-            `/api/counters/${selectedCounter}/slide/${slideNumber}`,
+            `/api/counters/${counterNumber}/slide/${slideNumber}`,
             {
                 method: "POST"
             }
@@ -79,23 +231,32 @@ async function applySlide() {
             );
         }
 
-        counters[selectedCounter] = slideNumber;
-
-        refreshStatuses();
+        // Remember the successfully applied slide
+        counters[counterNumber] = slideNumber;
 
         status.textContent =
-            `Counter ${selectedCounter}: Slide ${slideNumber} applied.`;
+            `Counter ${counterNumber}: ${airline} - ${displayName} applied successfully.`;
+
+        // Update the counter display
+        await refreshStatuses();
     }
     catch (error) {
-        console.error(error);
-        status.textContent = `Error: ${error.message}`;
+        console.error("Slide change failed:", error);
+
+        status.textContent =
+            `Error applying display to Counter ${counterNumber}: ${error.message}`;
+    }
+    finally {
+        applyButton.disabled = false;
     }
 }
 
-// Initialize after the HTML has loaded
-document.addEventListener("DOMContentLoaded", loadCounters);
 
+// ==========================================
+// CONNECTION STATUS MONITORING
+// ==========================================
 
+// Check the connection status of all counters
 async function refreshStatuses() {
     const refreshButton = document.getElementById("refreshButton");
     const lastUpdated = document.getElementById("lastUpdated");
@@ -121,6 +282,7 @@ async function refreshStatuses() {
 
             if (!button) return;
 
+            // Clear previous connection status
             button.classList.remove(
                 "connected",
                 "disconnected",
@@ -145,30 +307,48 @@ async function refreshStatuses() {
                 }
                 else {
                     button.classList.add("slideshow-inactive");
+
                     statusText = counter.powerpointRunning
                         ? "PowerPoint Open - No Slideshow"
                         : "PowerPoint Not Running";
                 }
             }
 
+            // Get the last applied display
             const slide = counters[counter.counter];
-            const slideText = slide ? `Slide ${slide}` : "";
 
+            let displayText = "";
+
+            if (slide) {
+                for (const [airline, presets] of Object.entries(airlinePresets)) {
+                    const preset = presets.find(
+                        item => item.slide === Number(slide)
+                    );
+
+                    if (preset) {
+                        displayText = `${airline} - ${preset.name}`;
+                        break;
+                    }
+                }
+            }
+
+            // Rebuild the counter button content
             button.replaceChildren();
 
             const name = document.createElement("strong");
             name.textContent = `Counter ${counter.counter}`;
 
-            const status = document.createElement("small");
-            status.textContent = statusText;
+            const connection = document.createElement("small");
+            connection.textContent = statusText;
 
             button.appendChild(name);
-            button.appendChild(status);
+            button.appendChild(connection);
 
-            if (slideText) {
-                const slideLabel = document.createElement("small");
-                slideLabel.textContent = slideText;
-                button.appendChild(slideLabel);
+            if (displayText) {
+                const displayLabel = document.createElement("small");
+                displayLabel.textContent = displayText;
+
+                button.appendChild(displayLabel);
             }
         });
 
@@ -177,6 +357,7 @@ async function refreshStatuses() {
     }
     catch (error) {
         console.error("Status refresh failed:", error);
+
         lastUpdated.textContent =
             "Unable to retrieve counter statuses.";
     }
@@ -186,11 +367,30 @@ async function refreshStatuses() {
     }
 }
 
-// Run first check when the dashboard loads
+
+// ==========================================
+// INITIALIZATION
+// ==========================================
+
 document.addEventListener("DOMContentLoaded", () => {
+
+    // Initialize airline and display dropdowns first
+    loadAirlines();
+
+    // Populate all 13 counters
+    loadCounters();
+
+    // Update display options when airline changes
+    document.getElementById("airlineSelect")
+        .addEventListener("change", loadDisplays);
+
+    // Update preset information when display changes
+    document.getElementById("slideSelect")
+        .addEventListener("change", updatePresetInfo);
+
+    // Run the initial status check
     refreshStatuses();
 
-    // Refresh automatically every 10 seconds
+    // Automatically check counter status every 10 seconds
     setInterval(refreshStatuses, 10000);
 });
-
