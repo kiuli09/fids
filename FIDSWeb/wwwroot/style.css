@@ -1,0 +1,52 @@
+
+/* General page styling */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f6f9;
+    margin: 0;
+    padding: 40px;
+}
+
+/* Main dashboard container */
+.container {
+    max-width: 900px;
+    margin: auto;
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Dashboard heading */
+h1 {
+    color: #163b65;
+    margin-bottom: 5px;
+}
+
+/* Slide selection buttons */
+.buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+button {
+    background: #1769aa;
+    color: white;
+    border: none;
+    padding: 14px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 15px;
+}
+
+button:hover {
+    background: #104c7d;
+}
+
+/* Selection status */
+#status {
+    margin-top: 25px;
+    font-weight: bold;
+    color: #163b65;
+}
