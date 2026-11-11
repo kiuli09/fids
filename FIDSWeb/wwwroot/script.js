@@ -171,24 +171,24 @@ function loadCounters() {
 
 
 // Select a counter
+
 function selectCounter(number) {
     selectedCounter = number;
 
     document.getElementById("selectedCounter").textContent =
         `Counter ${number}`;
 
-    // Remove previous selection highlighting
     document.querySelectorAll(".counter-button").forEach(button => {
         button.classList.remove("selected");
     });
 
-    // Highlight selected counter
     document.getElementById(`counter-${number}`)
         .classList.add("selected");
 
-    // Restore this counter's previously applied preset
+    // Restore the actual slide reported by the controller
     selectPresetBySlide(counters[number] || 1);
 }
+
 
 
 // ==========================================
@@ -274,6 +274,32 @@ async function refreshStatuses() {
         }
 
         const statuses = await response.json();
+
+        //Synchronise the dashboard with actual Powerpoint slides
+        statuses.forEach(counter => {
+
+            if (
+                counter.status === "connected" &&
+                counter.slideshowActive &&
+                counter.currentSlide != null
+            ){
+                counters[counter.counter] = counter.currentSlide;
+            } else {
+                delete counters[counter.counter];
+            }
+        });
+
+        // Update the selected counter's dropdowns
+        // Only when the actual displayed slide has changed
+        const actualSlide = counters[selectedCounter];
+
+        if (actualSlide != null){
+            const displayedSlide = Number(document.getElementById("slideSelect").value);
+
+            if(displayedSlide !== Number(actualSlide)){
+                selectPresetBySlide(actualSlide);
+            }
+        }
 
         statuses.forEach(counter => {
             const button = document.getElementById(

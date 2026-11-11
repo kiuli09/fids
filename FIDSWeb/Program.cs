@@ -86,7 +86,8 @@ app.MapGet("/api/counters/status", async (
                 counter,
                 status = "not_configured",
                 powerpointRunning = false,
-                slideshowActive = false
+                slideshowActive = false,
+                currentSlide = (int?)null
             });
 
             continue;
@@ -107,8 +108,9 @@ app.MapGet("/api/counters/status", async (
                 throw new HttpRequestException("Status check failed.");
 
             var controllerStatus =
-                await response.Content.ReadFromJsonAsync<
-                    ControllerStatus>();
+                await response.Content.ReadFromJsonAsync<ControllerStatus>(
+                    cancellation.Token
+                );
 
             results.Add(new
             {
@@ -117,25 +119,28 @@ app.MapGet("/api/counters/status", async (
                 powerpointRunning =
                     controllerStatus?.PowerpointRunning ?? false,
                 slideshowActive =
-                    controllerStatus?.SlideshowActive ?? false
+                    controllerStatus?.SlideshowActive ?? false,
+                currentSlide = controllerStatus?.CurrentSlide
             });
         }
         catch (Exception ex) when (
             ex is HttpRequestException ||
-            ex is TaskCanceledException)
+            ex is OperationCanceledException)
         {
             results.Add(new
             {
                 counter,
                 status = "disconnected",
                 powerpointRunning = false,
-                slideshowActive = false
+                slideshowActive = false,
+                currentSlide = (int?)null
             });
         }
     }
 
     return Results.Ok(results);
 });
+
 
 
 // Run the dashboard locally
@@ -147,5 +152,6 @@ public class ControllerStatus
     public bool ControllerOnline { get; set; }
     public bool PowerpointRunning { get; set; }
     public bool SlideshowActive { get; set; }
+    public int? CurrentSlide { get; set; }
 }
 

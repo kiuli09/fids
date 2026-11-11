@@ -85,6 +85,7 @@ class PowerPointController : IDisposable
 
 
     // Check PowerPoint status using the STA thread
+
     public Task<object> GetStatus()
     {
         var completion = new TaskCompletionSource<object>(
@@ -97,14 +98,26 @@ class PowerPointController : IDisposable
             {
                 dynamic powerpoint = GetRunningPowerPoint();
 
-                int slideshowCount =
-                    powerpoint.SlideShowWindows.Count;
+                bool powerpointRunning = true;
+                bool slideshowActive =
+                    powerpoint.SlideShowWindows.Count > 0;
+
+                int? currentSlide = null;
+
+                if (slideshowActive)
+                {
+                    dynamic slideshow = powerpoint.SlideShowWindows[1];
+
+                    currentSlide =
+                        (int)slideshow.View.CurrentShowPosition;
+                }
 
                 completion.SetResult(new
                 {
                     controllerOnline = true,
-                    powerpointRunning = true,
-                    slideshowActive = slideshowCount > 0
+                    powerpointRunning,
+                    slideshowActive,
+                    currentSlide
                 });
             }
             catch (COMException)
@@ -113,7 +126,8 @@ class PowerPointController : IDisposable
                 {
                     controllerOnline = true,
                     powerpointRunning = false,
-                    slideshowActive = false
+                    slideshowActive = false,
+                    currentSlide = (int?)null
                 });
             }
             catch (Exception ex)
