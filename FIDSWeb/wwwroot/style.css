@@ -171,3 +171,45 @@ button:hover {
     outline-offset: 2px;
 }
 
+
+/* Phase 5 - Operator Controls */
+
+.current-display,
+.new-display {
+    padding: 18px;
+    border-radius: 10px;
+    margin-bottom: 18px;
+}
+
+.current-display {
+    background: #eaf7ee;
+    border: 1px solid #b8dfc4;
+}
+
+.new-display {
+    background: #f5f7fa;
+    border: 1px solid #dce2e8;
+}
+
+.current-display h3,
+.new-display h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+}
+
+#currentDisplay {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 6px;
+}
+
+#currentSlideInfo {
+    color: #555;
+}
+
+#presetInfo {
+    font-size: 13px;
+    color: #666;
+    margin-top: 10px;
+}
+

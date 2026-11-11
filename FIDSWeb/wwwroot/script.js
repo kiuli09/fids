@@ -1,10 +1,17 @@
 
  // SAA FIDS - Counter Management
+ // Phase 5: Improved Operator Controls
 
 let selectedCounter = 1;
 
-// Store the last successfully applied slide for each counter
+// Actual slides reported by the PowerPoint controllers
 const counters = {};
+
+// Store pending display selections separately for each counter
+const pendingSelections = {};
+
+// Latest connection status for each counter
+const counterStatuses = {};
 
 // Airline display presets from the actual FIDS PowerPoint
 const airlinePresets = {
@@ -64,6 +71,26 @@ const airlinePresets = {
 // AIRLINE AND DISPLAY PRESETS
 // ==========================================
 
+// Find the airline and display for a slide
+function getPresetBySlide(slideNumber) {
+    for (const [airline, presets] of Object.entries(airlinePresets)) {
+        const preset = presets.find(
+            item => item.slide === Number(slideNumber)
+        );
+
+        if (preset) {
+            return {
+                airline,
+                name: preset.name,
+                slide: preset.slide
+            };
+        }
+    }
+
+    return null;
+}
+
+
 // Populate the airline dropdown
 function loadAirlines() {
     const airlineSelect = document.getElementById("airlineSelect");
@@ -90,6 +117,11 @@ function loadDisplays() {
 
     slideSelect.innerHTML = "";
 
+    if (!airlinePresets[airline]) {
+        updatePresetInfo();
+        return;
+    }
+
     airlinePresets[airline].forEach(preset => {
         const option = document.createElement("option");
 
@@ -103,36 +135,43 @@ function loadDisplays() {
 }
 
 
-// Show information about the selected preset
+// Show information about the pending selection
 function updatePresetInfo() {
     const airline = document.getElementById("airlineSelect").value;
     const slideSelect = document.getElementById("slideSelect");
 
     const selectedName =
-        slideSelect.options[slideSelect.selectedIndex]?.textContent;
+        slideSelect.selectedOptions[0]?.textContent;
+
+    const slideNumber = Number(slideSelect.value);
 
     document.getElementById("presetInfo").textContent =
-        `${airline} - ${selectedName} (Slide ${slideSelect.value})`;
+        selectedName
+            ? `${airline} - ${selectedName} (Slide ${slideNumber})`
+            : "Choose an airline and display.";
+
+    // Remember the pending selection for this counter
+    if (selectedName && slideNumber > 0) {
+        pendingSelections[selectedCounter] = slideNumber;
+    }
 }
 
 
-// Restore airline and display based on a slide number
+// Set the pending dropdowns to a particular slide
 function selectPresetBySlide(slideNumber) {
-    for (const [airline, presets] of Object.entries(airlinePresets)) {
-        if (presets.some(preset => preset.slide === Number(slideNumber))) {
+    const preset = getPresetBySlide(slideNumber);
 
-            document.getElementById("airlineSelect").value = airline;
+    if (!preset) return;
 
-            loadDisplays();
+    document.getElementById("airlineSelect").value =
+        preset.airline;
 
-            document.getElementById("slideSelect").value =
-                String(slideNumber);
+    loadDisplays();
 
-            updatePresetInfo();
+    document.getElementById("slideSelect").value =
+        String(preset.slide);
 
-            return;
-        }
-    }
+    updatePresetInfo();
 }
 
 
@@ -140,7 +179,7 @@ function selectPresetBySlide(slideNumber) {
 // COUNTER MANAGEMENT
 // ==========================================
 
-// Generate the 13 check-in counter buttons
+// Generate all 13 check-in counter buttons
 function loadCounters() {
     const grid = document.getElementById("counterGrid");
 
@@ -171,7 +210,6 @@ function loadCounters() {
 
 
 // Select a counter
-
 function selectCounter(number) {
     selectedCounter = number;
 
@@ -185,35 +223,99 @@ function selectCounter(number) {
     document.getElementById(`counter-${number}`)
         .classList.add("selected");
 
-    // Restore the actual slide reported by the controller
-    selectPresetBySlide(counters[number] || 1);
+    // Restore this counter's pending selection if available.
+    // Otherwise, use the actual current display.
+    const pendingSlide = pendingSelections[number];
+    const currentSlide = counters[number];
+
+    selectPresetBySlide(pendingSlide ?? currentSlide ?? 1);
+
+    updateCurrentDisplay();
 }
 
+
+// ==========================================
+// CURRENT DISPLAY
+// ==========================================
+
+// Show the actual display reported by PowerPoint
+function updateCurrentDisplay() {
+    const currentDisplay = document.getElementById("currentDisplay");
+    const currentSlideInfo = document.getElementById("currentSlideInfo");
+
+    const connection = counterStatuses[selectedCounter];
+
+    if (!connection) {
+        currentDisplay.textContent = "Checking counter status...";
+        currentSlideInfo.textContent = "";
+        return;
+    }
+
+    if (connection.status === "not_configured") {
+        currentDisplay.textContent = "Counter not configured";
+        currentSlideInfo.textContent = "";
+        return;
+    }
+
+    if (connection.status === "disconnected") {
+        currentDisplay.textContent = "Controller disconnected";
+        currentSlideInfo.textContent = "";
+        return;
+    }
+
+    if (!connection.slideshowActive) {
+        currentDisplay.textContent = "No active PowerPoint slideshow";
+        currentSlideInfo.textContent = "";
+        return;
+    }
+
+    const slideNumber = counters[selectedCounter];
+
+    if (slideNumber == null) {
+        currentDisplay.textContent = "Unable to identify current display";
+        currentSlideInfo.textContent = "";
+        return;
+    }
+
+    const preset = getPresetBySlide(slideNumber);
+
+    if (preset) {
+        currentDisplay.textContent =
+            `${preset.airline} - ${preset.name}`;
+
+        currentSlideInfo.textContent =
+            `Slide ${preset.slide}`;
+    }
+    else {
+        currentDisplay.textContent = "Unknown display";
+        currentSlideInfo.textContent = `Slide ${slideNumber}`;
+    }
+}
 
 
 // ==========================================
 // APPLY DISPLAY
 // ==========================================
 
-// Apply the selected slide to the selected counter
+// Apply the selected display to the selected counter
 async function applySlide() {
     const counterNumber = selectedCounter;
 
     const slideNumber =
-        document.getElementById("slideSelect").value;
+        Number(document.getElementById("slideSelect").value);
 
-    const airline =
-        document.getElementById("airlineSelect").value;
-
-    const displayName =
-        document.getElementById("slideSelect")
-            .selectedOptions[0]?.textContent;
+    const preset = getPresetBySlide(slideNumber);
 
     const status = document.getElementById("status");
     const applyButton = document.getElementById("applyButton");
 
+    if (!preset) {
+        status.textContent = "Please select a valid display.";
+        return;
+    }
+
     status.textContent =
-        `Applying ${airline} - ${displayName} to Counter ${counterNumber}...`;
+        `Applying ${preset.airline} - ${preset.name} to Counter ${counterNumber}...`;
 
     applyButton.disabled = true;
 
@@ -231,13 +333,11 @@ async function applySlide() {
             );
         }
 
-        // Remember the successfully applied slide
-        counters[counterNumber] = slideNumber;
-
         status.textContent =
-            `Counter ${counterNumber}: ${airline} - ${displayName} applied successfully.`;
+            `Counter ${counterNumber}: ${preset.airline} - ${preset.name} command sent successfully.`;
 
-        // Update the counter display
+        // Refresh actual display from PowerPoint.
+        // Do not assume the requested slide is already active.
         await refreshStatuses();
     }
     catch (error) {
@@ -256,7 +356,7 @@ async function applySlide() {
 // CONNECTION STATUS MONITORING
 // ==========================================
 
-// Check the connection status of all counters
+// Retrieve current status and actual slides from all controllers
 async function refreshStatuses() {
     const refreshButton = document.getElementById("refreshButton");
     const lastUpdated = document.getElementById("lastUpdated");
@@ -275,31 +375,24 @@ async function refreshStatuses() {
 
         const statuses = await response.json();
 
-        //Synchronise the dashboard with actual Powerpoint slides
         statuses.forEach(counter => {
+            counterStatuses[counter.counter] = counter;
 
             if (
                 counter.status === "connected" &&
                 counter.slideshowActive &&
                 counter.currentSlide != null
-            ){
-                counters[counter.counter] = counter.currentSlide;
-            } else {
+            ) {
+                counters[counter.counter] = Number(counter.currentSlide);
+            }
+            else {
                 delete counters[counter.counter];
             }
         });
 
-        // Update the selected counter's dropdowns
-        // Only when the actual displayed slide has changed
-        const actualSlide = counters[selectedCounter];
-
-        if (actualSlide != null){
-            const displayedSlide = Number(document.getElementById("slideSelect").value);
-
-            if(displayedSlide !== Number(actualSlide)){
-                selectPresetBySlide(actualSlide);
-            }
-        }
+        // Update actual display information.
+        // Never overwrite the operator's pending dropdown selection.
+        updateCurrentDisplay();
 
         statuses.forEach(counter => {
             const button = document.getElementById(
@@ -308,7 +401,6 @@ async function refreshStatuses() {
 
             if (!button) return;
 
-            // Clear previous connection status
             button.classList.remove(
                 "connected",
                 "disconnected",
@@ -340,25 +432,19 @@ async function refreshStatuses() {
                 }
             }
 
-            // Get the last applied display
             const slide = counters[counter.counter];
+            const preset = getPresetBySlide(slide);
 
             let displayText = "";
 
-            if (slide) {
-                for (const [airline, presets] of Object.entries(airlinePresets)) {
-                    const preset = presets.find(
-                        item => item.slide === Number(slide)
-                    );
-
-                    if (preset) {
-                        displayText = `${airline} - ${preset.name}`;
-                        break;
-                    }
-                }
+            if (preset) {
+                displayText =
+                    `${preset.airline} - ${preset.name}`;
+            }
+            else if (slide != null) {
+                displayText = `Unknown Slide ${slide}`;
             }
 
-            // Rebuild the counter button content
             button.replaceChildren();
 
             const name = document.createElement("strong");
@@ -400,23 +486,23 @@ async function refreshStatuses() {
 
 document.addEventListener("DOMContentLoaded", () => {
 
-    // Initialize airline and display dropdowns first
+    // Populate airline and display dropdowns
     loadAirlines();
 
-    // Populate all 13 counters
+    // Generate the 13 counter buttons
     loadCounters();
 
-    // Update display options when airline changes
+    // Update available displays when airline changes
     document.getElementById("airlineSelect")
         .addEventListener("change", loadDisplays);
 
-    // Update preset information when display changes
+    // Update pending selection when display changes
     document.getElementById("slideSelect")
         .addEventListener("change", updatePresetInfo);
 
-    // Run the initial status check
+    // Retrieve current display information
     refreshStatuses();
 
-    // Automatically check counter status every 10 seconds
+    // Refresh statuses every 10 seconds
     setInterval(refreshStatuses, 10000);
 });
