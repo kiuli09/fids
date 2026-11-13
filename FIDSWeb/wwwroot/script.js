@@ -506,3 +506,33 @@ document.addEventListener("DOMContentLoaded", () => {
     // Refresh statuses every 10 seconds
     setInterval(refreshStatuses, 10000);
 });
+
+
+// Theme preferences — independent of FIDS controller operations
+(function initializeTheme() {
+    const key = "saa-fids-theme";
+    let saved;
+    try { saved = localStorage.getItem(key); } catch (_) {}
+    const initial = saved === "dark" || saved === "light" ? saved : "light";
+    function applyTheme(theme) {
+        document.documentElement.dataset.theme = theme;
+        const icon = document.getElementById("themeIcon");
+        const label = document.getElementById("themeLabel");
+        const button = document.getElementById("themeToggle");
+        if (!button) return;
+        const dark = theme === "dark";
+        icon.textContent = dark ? "☀" : "☾";
+        label.textContent = dark ? "Light mode" : "Dark mode";
+        button.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+        button.setAttribute("aria-pressed", String(dark));
+    }
+    applyTheme(initial);
+    document.addEventListener("DOMContentLoaded", () => {
+        applyTheme(document.documentElement.dataset.theme || initial);
+        document.getElementById("themeToggle")?.addEventListener("click", () => {
+            const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+            applyTheme(next);
+            try { localStorage.setItem(key, next); } catch (_) {}
+        });
+    });
+})();
